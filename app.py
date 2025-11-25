@@ -17,7 +17,11 @@ st.set_page_config(page_title="Driver Telemetry Dashboard (FAST MODE)",
                    page_icon="🏎️", layout="wide")
 
 url = "https://github.com/MSiswanto/driver_traininginsight/releases/download/csv/telemetry_filtered_v2.csv"
-DEFAULT_TELEMETRY_CSV = pd.read_csv(url)  #telemetry_filtered_v2.csv
+#DEFAULT_TELEMETRY_CSV = pd.read_csv(url)  #telemetry_filtered_v2.csv
+r = requests.get(url)
+open("telemetry_filtered_v2.csvv", "wb").write(r.content)
+
+DEFAULT_TELEMETRY_CSV = pd.read_csv("telemetry_filtered_v2.csv")
 
 
 # =====================================================================
@@ -354,6 +358,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
