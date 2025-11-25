@@ -7,7 +7,7 @@ from sklearn.preprocessing import RobustScaler
 from typing import Tuple, List
 
 #DEFAULT_TELEMETRY_PATH = "data/telemetry_final_lap_avg.csv"  #telemetry_filtered_v2.csv
-url = "https://drive.google.com/file/d/1orMC0J4TGC5pXz1Q5JUpCklAUMaN8IPt/view?usp=sharing"
+url = "https://github.com/MSiswanto/driver_traininginsight/releases/download/csv/telemetry_filtered_v2.csv"
 DEFAULT_TELEMETRY_CSV = pd.read_csv(url)  #telemetry_filtered_v2.csv
 
 
