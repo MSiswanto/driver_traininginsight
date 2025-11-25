@@ -16,7 +16,7 @@ from pages.ai_insight import show_ai_insight
 st.set_page_config(page_title="Driver Telemetry Dashboard (FAST MODE)",
                    page_icon="🏎️", layout="wide")
 
-DEFAULT_TELEMETRY_CSV = "data/telemetry_filtered_v2.csv"
+DEFAULT_TELEMETRY_CSV = "data/telemetry_final_lap_avg.csv"  #telemetry_filtered_v2.csv
 
 
 # =====================================================================
@@ -353,3 +353,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
