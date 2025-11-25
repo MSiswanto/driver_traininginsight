@@ -9,11 +9,12 @@ from typing import Tuple, List
 #DEFAULT_TELEMETRY_PATH = "data/telemetry_final_lap_avg.csv"  #telemetry_filtered_v2.csv
 import requests
 
-url = "https://github.com/MSiswanto/driver_traininginsight/releases/download/csv/telemetry_final_lap_avg.csv"
+url = "https://github.com/MSiswanto/driver_traininginsight/releases/download/csv/telemetry_filtered_v2.csv"
+#DEFAULT_TELEMETRY_CSV = pd.read_csv(url)  #telemetry_filtered_v2.csv
 r = requests.get(url)
-open("telemetry.csv", "wb").write(r.content)
+open("telemetry_filtered_v2.csvv", "wb").write(r.content)
 
-df = pd.read_csv("telemetry.csv")
+DEFAULT_TELEMETRY_CSV = pd.read_csv("telemetry_filtered_v2.csv")
 
 def _chunked_aggregate_means(path: str, metrics_keep: List[str], chunksize: int = 200_000) -> pd.DataFrame:
     """
