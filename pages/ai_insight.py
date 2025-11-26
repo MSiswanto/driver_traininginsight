@@ -11,7 +11,10 @@ def show_ai_insight(df_lap=None):
     st.title("🤖 AI Driver Insight (Anomaly Detection — Safety + Performance)")
     st.markdown("This panel runs a memory-safe anomaly pipeline (chunked aggregation + IsolationForest + robust z-score).")
 
-    telemetry_path = "data/telemetry_filtered_v2.csv"
+    #telemetry_path = "data/telemetry_filtered_v2.csv"
+    url = "https://raw.githubusercontent.com/MSiswanto/driver_traininginsight/refs/tags/csv/telemetry_filtered_v2.csv"
+    telemetry_path = pd.read_csv(url)
+
     st.caption(f"Telemetry path used: `{telemetry_path}`")
 
     with st.spinner("Running anomaly pipeline (safe mode)..."):
