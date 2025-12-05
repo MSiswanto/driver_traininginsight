@@ -6,8 +6,8 @@ from sklearn.ensemble import IsolationForest
 from sklearn.preprocessing import RobustScaler
 from typing import Tuple, List
 
-#DEFAULT_TELEMETRY_PATH = "data/telemetry_filtered_v2.csv"
-DEFAULT_TELEMETRY_PATH = "https://raw.githubusercontent.com/MSiswanto/driver_traininginsight/main/data/telemetry_filtered_v2.csv"
+DEFAULT_TELEMETRY_PATH = "https://github.com/MSiswanto/driver_traininginsight/releases/download/csv/telemetry_filtered_v2.csv"
+#DEFAULT_TELEMETRY_PATH = "https://raw.githubusercontent.com/MSiswanto/driver_traininginsight/main/data/telemetry_filtered_v2.csv"
 
 def _chunked_aggregate_means(path: str, metrics_keep: List[str], chunksize: int = 200_000) -> pd.DataFrame:
     """
