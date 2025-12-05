@@ -16,7 +16,8 @@ from pages.ai_insight import show_ai_insight
 st.set_page_config(page_title="Driver Telemetry Dashboard (FAST MODE)",
                    page_icon="🏎️", layout="wide")
 
-url = "https://raw.githubusercontent.com/MSiswanto/driver_traininginsight/refs/tags/csv/telemetry_filtered_v2.csv"
+#url = "https://raw.githubusercontent.com/MSiswanto/driver_traininginsight/refs/tags/csv/telemetry_filtered_v2.csv"
+url = https://github.com/MSiswanto/driver_traininginsight/releases/download/csv/telemetry_filtered_v2.csv"
 DEFAULT_TELEMETRY_CSV = pd.read_csv(url)
 
 # =====================================================================
@@ -353,6 +354,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
