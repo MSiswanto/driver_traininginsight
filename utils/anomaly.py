@@ -9,7 +9,17 @@ from typing import Tuple, List
 DEFAULT_TELEMETRY_PATH = "https://github.com/MSiswanto/driver_traininginsight/releases/download/csv/telemetry_filtered_v2.csv"
 #DEFAULT_TELEMETRY_PATH = "https://raw.githubusercontent.com/MSiswanto/driver_traininginsight/main/data/telemetry_filtered_v2.csv"
 
-def _chunked_aggregate_means(path: str, metrics_keep: List[str], chunksize: int = 200_000) -> pd.DataFrame:
+def _chunked_aggregate_means(path, metrics_keep, chunksize=200_000):
+
+    # Jika path adalah URL → skip os.path.exists
+    if path.startswith("http://") or path.startswith("https://"):
+        reader = pd.read_csv(path, chunksize=chunksize, engine="python")
+    else:
+        if not os.path.exists(path):
+            raise FileNotFoundError(f"Telemetry file not found at: {path}")
+        reader = pd.read_csv(path, chunksize=chunksize, engine="python")
+
+#def _chunked_aggregate_means(path: str, metrics_keep: List[str], chunksize: int = 200_000) -> pd.DataFrame:
     """
     Read long-format telemetry CSV in chunks and compute aggregated mean per
     (vehicle_id, vehicle_number, lap, telemetry_name).
@@ -17,12 +27,13 @@ def _chunked_aggregate_means(path: str, metrics_keep: List[str], chunksize: int 
       vehicle_id, vehicle_number, lap, telemetry_name, telemetry_value_mean
     This prevents loading the entire file into memory as a single DataFrame.
     """
-    if not os.path.exists(path):
-        raise FileNotFoundError(f"Telemetry file not found at: {path}")
+    #if not os.path.exists(path):
+        #raise FileNotFoundError(f"Telemetry file not found at: {path}")
 
-    agg_list = []
-    cols = None
-    reader = pd.read_csv(path, chunksize=chunksize, engine="python")
+    #agg_list = []
+    #cols = None
+    #reader = pd.read_csv(path, chunksize=chunksize, engine="python")
+    
     for i, chunk in enumerate(reader):
         # normalize columns
         chunk.columns = [c.strip() for c in chunk.columns]
