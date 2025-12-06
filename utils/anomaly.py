@@ -21,73 +21,63 @@ def load_if_path(x: Union[str, pd.DataFrame]) -> pd.DataFrame:
         return pd.read_csv(x)
     raise TypeError(f"Unsupported telemetry input: {type(x)}")
 
+#def _chunked_aggregate_means(path_or_df: Union[str, pd.DataFrame],
+                           #  metrics_keep: Optional[List[str]],
+                           #  chunksize: int = 200_000,
+                           #  progress: ProgressCallback = None) -> pd.DataFrame:
+def _chunked_aggregate_means(path, metrics_keep, chunksize=200_000):
 
-def _chunked_aggregate_means(path_or_df: Union[str, pd.DataFrame],
-                             metrics_keep: Optional[List[str]],
-                             chunksize: int = 200_000,
-                             progress: ProgressCallback = None) -> pd.DataFrame:
-    """
-    Read long-format telemetry CSV in chunks and compute aggregated mean per
-    (vehicle_id, vehicle_number, lap, telemetry_name).
-    Accepts either:
-      - path_or_df: URL or local path (string) -> read in chunks
-      - OR a Pandas DataFrame (long format) -> process in-memory
-    Returns aggregated long-format DataFrame with columns:
-      vehicle_id, vehicle_number, lap, telemetry_name, telemetry_value_mean
-    """
-    if metrics_keep is None:
-        metrics_keep = ["speed", "aps", "pbrake_f", "pbrake_r",
-                        "Steering_Angle", "accx_can", "accy_can", "ath"]
-
-    # Prepare reader: if DataFrame, use single-chunk list
-    if isinstance(path_or_df, pd.DataFrame):
-        reader = [path_or_df]
-        total_est = len(path_or_df)
+    # Jika path adalah URL → skip os.path.exists
+    if path.startswith("http://") or path.startswith("https://"):
+        reader = pd.read_csv(path, chunksize=chunksize, engine="python")
     else:
-        # assume string path/URL
-        if not (isinstance(path_or_df, str) and (path_or_df.startswith("http://") or path_or_df.startswith("https://") or os.path.exists(path_or_df))):
-            raise FileNotFoundError(f"Telemetry file not found or invalid path: {path_or_df}")
-        reader = pd.read_csv(path_or_df, chunksize=chunksize, engine="python")
-        total_est = None  # unknown
+        if not os.path.exists(path):
+            raise FileNotFoundError(f"Telemetry file not found: {path}")
+        reader = pd.read_csv(path, chunksize=chunksize, engine="python")
 
-    agg_list = []
-    processed = 0
+    # --- FIX: harus ada ini ---
+    agg_list = []     # <- tambahkan baris ini
+
+    # --- loop chunk ---
     for i, chunk in enumerate(reader):
-        # if it's a chunk generator, chunk is DataFrame already
         chunk.columns = [c.strip() for c in chunk.columns]
 
-        # ensure minimal columns
-        must_cols = {"vehicle_id", "vehicle_number", "lap", "telemetry_name", "telemetry_value"}
-        if not must_cols.issubset(set(chunk.columns)):
-            raise ValueError("Input CSV must contain: vehicle_id, vehicle_number, lap, telemetry_name, telemetry_value")
+        if not set(["vehicle_id", "vehicle_number", "lap",
+                    "telemetry_name", "telemetry_value"]).issubset(chunk.columns):
+            raise ValueError(
+                "Input CSV must contain: vehicle_id, vehicle_number, lap, telemetry_name, telemetry_value"
+            )
 
-        # restrict to metrics we want
+        # filter metrics
         if metrics_keep:
             chunk = chunk[chunk["telemetry_name"].isin(metrics_keep)]
 
-        # convert numeric where possible
+        # numeric
         chunk["telemetry_value"] = pd.to_numeric(chunk["telemetry_value"], errors="coerce")
         chunk = chunk.dropna(subset=["telemetry_value"])
         if chunk.empty:
-            processed += len(chunk)
-            if progress and total_est:
-                progress(min(1.0, processed / total_est))
             continue
 
-        grp = chunk.groupby(["vehicle_id", "vehicle_number", "lap", "telemetry_name"], as_index=False)["telemetry_value"].mean()
+        grp = chunk.groupby(
+            ["vehicle_id", "vehicle_number", "lap", "telemetry_name"],
+            as_index=False
+        )["telemetry_value"].mean()
+
         agg_list.append(grp)
 
-        processed += len(chunk)
-        if progress and total_est:
-            progress(min(1.0, processed / total_est))
-
     if not agg_list:
-        return pd.DataFrame(columns=["vehicle_id", "vehicle_number", "lap", "telemetry_name", "telemetry_value_mean"])
+        return pd.DataFrame(columns=[
+            "vehicle_id", "vehicle_number", "lap", "telemetry_name", "telemetry_value"
+        ])
 
     combined = pd.concat(agg_list, ignore_index=True)
-    combined = combined.groupby(["vehicle_id", "vehicle_number", "lap", "telemetry_name"], as_index=False)["telemetry_value"].mean()
-    combined = combined.rename(columns={"telemetry_value": "telemetry_value_mean"})
-    return combined
+
+    combined = combined.groupby(
+        ["vehicle_id", "vehicle_number", "lap", "telemetry_name"],
+        as_index=False
+    )["telemetry_value"].mean()
+
+    return combined.rename(columns={"telemetry_value": "telemetry_value_mean"})
 
 
 def load_and_pivot(path_or_df: Union[str, pd.DataFrame] = DEFAULT_TELEMETRY_PATH,
