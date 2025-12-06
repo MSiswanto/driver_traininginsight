@@ -20,11 +20,30 @@ def show_ai_insight(df_lap=None):
     
     st.caption("Using in-memory telemetry from main dashboard (FAST MODE).")
 
+    # create a progress bar
+    prog = st.progress(0)
+    def _progress_cb(f):
+        try:
+            prog.progress(min(100, int(f * 100)))
+        except Exception:
+            pass
+
     with st.spinner("Running anomaly pipeline (safe mode)..."):
         try:
-            pivot, anomalies = run_full_anomaly_pipeline(telemetry_df)
+            # pass df_lap (DataFrame) directly, sample_max_rows to limit memory if needed
+            pivot, anomalies = run_full_anomaly_pipeline(
+                df_lap,
+                metrics_keep=None,
+                contamination=0.02,
+                chunksize=200_000,
+                progress=_progress_cb,
+                sample_max_rows=200_000,
+                n_jobs=1
+            )
+            prog.progress(100)
         except Exception as e:
             st.error(f"An error occurred while running anomaly detection: {e}")
+            prog.empty()
             return
 
     if pivot is None or pivot.empty:
