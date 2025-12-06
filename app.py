@@ -309,6 +309,9 @@ def page_ai_insight(df_lap):
     # Top unusual segments
     # ======== PREVENT INDEX EXPLOSION ========
     df_lap = df_lap.reset_index(drop=True)
+  
+    safe_cols = ["anomaly_score"] + numeric_cols
+    safe_cols = [c for c in safe_cols if c in df_lap.columns]
 
     # ======== GET TOP ANOMALY ROWS SAFELY ========
     top_k = 10
@@ -317,16 +320,9 @@ def page_ai_insight(df_lap):
     df_top = df_lap.loc[top_idx, safe_cols].copy()
 
     # ======== SAFE DISPLAY ========
-    st.dataframe(df_top, width="stretch")
-
-    #top_idx = df_lap["anomaly_score"].nlargest(5).index
-
-    safe_cols = ["anomaly_score"] + numeric_cols
-    safe_cols = [c for c in safe_cols if c in df_lap.columns]
-
     st.success("Top unusual telemetry segments:")
-    #st.dataframe(df_lap.loc[top_idx, safe_cols], width="stretch")
-
+    st.dataframe(df_top, width="stretch")
+    
 # =====================================================================
 # MAIN APP
 # =====================================================================
@@ -359,6 +355,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
