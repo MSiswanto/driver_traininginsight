@@ -21,8 +21,6 @@ DEFAULT_TELEMETRY_CSV = (
 )
 
 #url = "https://raw.githubusercontent.com/MSiswanto/driver_traininginsight/refs/tags/csv/telemetry_filtered_v2.csv"
-#url = "https://github.com/MSiswanto/driver_traininginsight/releases/download/csv/telemetry_filtered_v2.csv"
-#DEFAULT_TELEMETRY_CSV = pd.read_csv(url)
 
 # =====================================================================
 # 🔥 SUPER FAST LOADER (NO TIMESTAMP, NO EXPENSIVE PIVOT)
@@ -31,12 +29,21 @@ DEFAULT_TELEMETRY_CSV = (
 def load_telemetry_wide(csv_path):
     """
     FAST MODE loader for long-format telemetry:
-    vehicle_id, vehicle_number, lap, telemetry_name, telemetry_value
+    Works for local files AND remote URLs (GitHub Release / Raw GitHub).
     """
-    if not os.path.exists(csv_path):
-        raise FileNotFoundError(f"Telemetry file not found: {csv_path}")
 
-    df = pd.read_csv(csv_path)
+    # --- FIX: detect URL ---
+    is_url = csv_path.startswith("http://") or csv_path.startswith("https://")
+
+    try:
+        if is_url:
+            df = pd.read_csv(csv_path)   # read direct from URL
+        else:
+            if not os.path.exists(csv_path):
+                raise FileNotFoundError(f"Telemetry file not found: {csv_path}")
+            df = pd.read_csv(csv_path)
+    except Exception as e:
+        raise RuntimeError(f"Failed to load CSV: {e}")
 
     required = ["vehicle_id", "vehicle_number", "lap",
                 "telemetry_name", "telemetry_value"]
@@ -44,10 +51,10 @@ def load_telemetry_wide(csv_path):
         if col not in df.columns:
             raise ValueError(f"Missing required column: {col}")
 
-    # Sample index (replaces timestamp)
+    # Sample index
     df["sample_id"] = np.arange(len(df))
 
-    # SUPER FAST PIVOT: no timestamp, no large index
+    # Pivot fast
     df_wide = df.pivot(
         index=["vehicle_id", "vehicle_number", "lap", "sample_id"],
         columns="telemetry_name",
@@ -56,7 +63,6 @@ def load_telemetry_wide(csv_path):
 
     df_wide.columns = [c.lower().strip() for c in df_wide.columns]
 
-    # Rename some common channels
     rename_map = {
         "accx_can": "acc_x",
         "accy_can": "acc_y",
@@ -66,15 +72,12 @@ def load_telemetry_wide(csv_path):
     }
     df_wide = df_wide.rename(columns=rename_map)
 
-    # Ensure main numeric fields exist
     for col in ["speed", "throttle", "brake_front", "brake_rear", "steering"]:
         if col not in df_wide.columns:
             df_wide[col] = np.nan
 
-    # Fallback throttle estimate from acc_x
     if df_wide["throttle"].isna().all() or df_wide["throttle"].max() == 0:
-        acc = df_wide["acc_x"].fillna(0)
-        acc = acc.clip(lower=0)
+        acc = df_wide["acc_x"].fillna(0).clip(lower=0)
         df_wide["throttle"] = (
             acc / acc.max() if acc.max() > 0 else acc
         ).round(3)
@@ -358,6 +361,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
