@@ -310,6 +310,7 @@ def page_ai_insight(df_lap):
     # ======== PREVENT INDEX EXPLOSION ========
     df_lap = df_lap.reset_index(drop=True)
   
+    # ======== SAFE COLS ========
     safe_cols = ["anomaly_score"] + numeric_cols
     safe_cols = [c for c in safe_cols if c in df_lap.columns]
 
@@ -355,6 +356,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
