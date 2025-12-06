@@ -1,4 +1,11 @@
-# ------------------------------------------------------------
+import traceback, streamlit as st
+
+st.set_page_config(page_title="DEBUG", layout="wide")
+try:
+    # original content follows after this marker
+    # ----------------- START ORIGINAL APP HERE -----------------
+    # paste original app.py contents below this try block (temporarily)
+    # ------------------------------------------------------------
 # app.py — FAST MODE (Super Optimized)
 # ------------------------------------------------------------
 import os
@@ -359,19 +366,11 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
-
-
-
-
-
-
-
-
-
-
+#-------------
+except Exception:
+    st.error("Import/runtime error:")
+    st.code(traceback.format_exc())
+    st.stop()
 
 
 
