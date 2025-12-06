@@ -24,7 +24,10 @@ DEFAULT_TELEMETRY_CSV = url
 # 🔥 SUPER FAST LOADER (NO TIMESTAMP, NO EXPENSIVE PIVOT)
 # =====================================================================
 @st.cache_data(show_spinner=True)
-def load_telemetry_wide(csv_path):
+def load_telemetry_wide(csv_path):  
+    if isinstance(csv_path, pd.DataFrame):
+        raise TypeError("csv_path must be a path or URL, not a DataFrame.")
+     
     """
     FAST MODE loader for long-format telemetry:
     Works for local files AND remote URLs (GitHub Release / Raw GitHub).
@@ -356,6 +359,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
