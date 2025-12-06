@@ -9,74 +9,99 @@ from sklearn.preprocessing import RobustScaler
 
 DEFAULT_TELEMETRY_PATH = "https://github.com/MSiswanto/driver_traininginsight/releases/download/csv/telemetry_filtered_v2.csv"
 
-# Type for progress callback: accepts float 0..1 or int percent
+# Type for progress callback: accepts float 0..1
 ProgressCallback = Optional[Callable[[float], None]]
 
 
-def load_if_path(x: Union[str, pd.DataFrame]) -> pd.DataFrame:
-    """Return DataFrame if x is a DataFrame, otherwise read CSV from path/URL."""
-    if isinstance(x, pd.DataFrame):
-        return x.copy()
-    if isinstance(x, str):
-        return pd.read_csv(x)
-    raise TypeError(f"Unsupported telemetry input: {type(x)}")
+def _call_progress(cb: ProgressCallback, fraction: float):
+    """ Helper: safe call progress callback with value clamped 0..1."""
+    if cb is None:
+        return
+    try:
+        cb(max(0.0, min(1.0, float(fraction))))
+    except Exception:
+        # avoid raising from progress callback
+        pass
 
-#def _chunked_aggregate_means(path_or_df: Union[str, pd.DataFrame],
-                           #  metrics_keep: Optional[List[str]],
-                           #  chunksize: int = 200_000,
-                           #  progress: ProgressCallback = None) -> pd.DataFrame:
-def _chunked_aggregate_means(path, metrics_keep, chunksize=200_000):
 
-    # Jika path adalah URL → skip os.path.exists
-    if path.startswith("http://") or path.startswith("https://"):
-        reader = pd.read_csv(path, chunksize=chunksize, engine="python")
-    else:
-        if not os.path.exists(path):
-            raise FileNotFoundError(f"Telemetry file not found: {path}")
-        reader = pd.read_csv(path, chunksize=chunksize, engine="python")
+def _read_csv_chunks_or_df(path_or_df: Union[str, pd.DataFrame], chunksize: int = 200_000):
+    """
+    Return an iterator of DataFrame chunks or a single-item list containing the DataFrame.
+    If path_or_df is DataFrame => return [df]
+    If string => yield pandas read_csv(..., chunksize=chunksize)
+    """
+    if isinstance(path_or_df, pd.DataFrame):
+        return [path_or_df.copy()]
+    if isinstance(path_or_df, str):
+        # treat as URL or local path
+        if path_or_df.startswith("http://") or path_or_df.startswith("https://"):
+            return pd.read_csv(path_or_df, chunksize=chunksize, engine="python")
+        else:
+            if not os.path.exists(path_or_df):
+                raise FileNotFoundError(f"Telemetry file not found: {path_or_df}")
+            return pd.read_csv(path_or_df, chunksize=chunksize, engine="python")
+    raise TypeError("path_or_df must be a pandas.DataFrame or a string path/URL")
 
-    # --- FIX: harus ada ini ---
-    agg_list = []     # <- tambahkan baris ini
 
-    # --- loop chunk ---
+def _chunked_aggregate_means(path_or_df: Union[str, pd.DataFrame],
+                             metrics_keep: Optional[List[str]] = None,
+                             chunksize: int = 200_000,
+                             progress: ProgressCallback = None) -> pd.DataFrame:
+    """
+    Read long-format telemetry CSV in chunks (or process provided DataFrame) and compute aggregated mean per
+    (vehicle_id, vehicle_number, lap, telemetry_name).
+
+    Returns aggregated long-format DataFrame with columns:
+      vehicle_id, vehicle_number, lap, telemetry_name, telemetry_value_mean
+    """
+    if metrics_keep is None:
+        metrics_keep = ["speed", "aps", "pbrake_f", "pbrake_r",
+                        "Steering_Angle", "accx_can", "accy_can", "ath"]
+
+    reader = _read_csv_chunks_or_df(path_or_df, chunksize=chunksize)
+
+    agg_list = []
+    processed_rows = 0
+    total_rows_est = None
+
+    # If reader is actually a generator (TextFileReader), we can't know total easily.
+    # If we were given an in-memory DataFrame (list with single item), we can estimate.
+    if isinstance(reader, list):
+        total_rows_est = len(reader[0])
+
     for i, chunk in enumerate(reader):
+        # normalize column names
         chunk.columns = [c.strip() for c in chunk.columns]
 
-        if not set(["vehicle_id", "vehicle_number", "lap",
-                    "telemetry_name", "telemetry_value"]).issubset(chunk.columns):
-            raise ValueError(
-                "Input CSV must contain: vehicle_id, vehicle_number, lap, telemetry_name, telemetry_value"
-            )
+        required = {"vehicle_id", "vehicle_number", "lap", "telemetry_name", "telemetry_value"}
+        if not required.issubset(set(chunk.columns)):
+            raise ValueError("Input CSV/DF must contain: vehicle_id, vehicle_number, lap, telemetry_name, telemetry_value")
 
-        # filter metrics
+        # restrict to metrics we want
         if metrics_keep:
             chunk = chunk[chunk["telemetry_name"].isin(metrics_keep)]
 
-        # numeric
+        # convert telemetry_value to numeric and drop NA
         chunk["telemetry_value"] = pd.to_numeric(chunk["telemetry_value"], errors="coerce")
         chunk = chunk.dropna(subset=["telemetry_value"])
         if chunk.empty:
+            processed_rows += 0 if total_rows_est is None else len(chunk)
+            _call_progress(progress, 0 if total_rows_est is None else processed_rows / total_rows_est)
             continue
 
-        grp = chunk.groupby(
-            ["vehicle_id", "vehicle_number", "lap", "telemetry_name"],
-            as_index=False
-        )["telemetry_value"].mean()
-
+        grp = chunk.groupby(["vehicle_id", "vehicle_number", "lap", "telemetry_name"], as_index=False)["telemetry_value"].mean()
         agg_list.append(grp)
 
+        processed_rows += len(chunk)
+        if total_rows_est:
+            _call_progress(progress, processed_rows / total_rows_est)
+
     if not agg_list:
-        return pd.DataFrame(columns=[
-            "vehicle_id", "vehicle_number", "lap", "telemetry_name", "telemetry_value"
-        ])
+        return pd.DataFrame(columns=["vehicle_id", "vehicle_number", "lap", "telemetry_name", "telemetry_value_mean"])
 
     combined = pd.concat(agg_list, ignore_index=True)
-
-    combined = combined.groupby(
-        ["vehicle_id", "vehicle_number", "lap", "telemetry_name"],
-        as_index=False
-    )["telemetry_value"].mean()
-
+    # combine again in case same keys appear across chunks
+    combined = combined.groupby(["vehicle_id", "vehicle_number", "lap", "telemetry_name"], as_index=False)["telemetry_value"].mean()
     return combined.rename(columns={"telemetry_value": "telemetry_value_mean"})
 
 
@@ -91,22 +116,23 @@ def load_and_pivot(path_or_df: Union[str, pd.DataFrame] = DEFAULT_TELEMETRY_PATH
     if metrics_keep is None:
         metrics_keep = ["speed", "aps", "pbrake_f", "pbrake_r", "Steering_Angle", "accx_can", "accy_can", "ath"]
 
-    # If path_or_df is already wide-format (has telemetry columns), attempt fast detect:
+    # If path_or_df is a DataFrame, detect if it's already wide-format:
     if isinstance(path_or_df, pd.DataFrame):
         df = path_or_df.copy()
-        # detection heuristics: if telemetry_name present -> long-format; else likely already wide
-        long_format = {"telemetry_name", "telemetry_value"}.issubset(set(df.columns))
-        if not long_format and {"vehicle_id", "vehicle_number", "lap"}.issubset(set(df.columns)):
+        # If long-format fields exist, treat as long-format and aggregate
+        if {"telemetry_name", "telemetry_value"}.issubset(set(df.columns)):
+            # fallthrough to aggregation
+            pass
+        elif {"vehicle_id", "vehicle_number", "lap"}.issubset(set(df.columns)):
             # assume already wide
             pivot = df
-            # ensure columns are strings
             pivot.columns = [str(c) for c in pivot.columns]
-            # cast numeric telemetry columns
             for c in pivot.columns:
                 if c not in ["vehicle_id", "vehicle_number", "lap"]:
                     pivot[c] = pd.to_numeric(pivot[c], errors="coerce")
             return pivot
-        # else fallthrough to aggregated long-format processing
+        else:
+            raise ValueError("Input DataFrame does not look like long-format or wide-format telemetry.")
 
     long_agg = _chunked_aggregate_means(path_or_df, metrics_keep=metrics_keep, chunksize=chunksize, progress=progress)
     if long_agg.empty:
@@ -136,23 +162,27 @@ def feature_engineer(df_wide: pd.DataFrame) -> pd.DataFrame:
     df = df_wide.copy()
     feats = pd.DataFrame(index=df.index)
 
-    # common features (robust)
     def _to_num(col):
         return pd.to_numeric(df[col], errors="coerce") if col in df.columns else pd.Series(np.nan, index=df.index)
 
     feats["speed"] = _to_num("speed")
-    feats["throttle"] = _to_num("aps").fillna(_to_num("ath"))
-    feats["brake"] = _to_num("pbrake_f").fillna(_to_num("pbrake_r"))
+    # throttle prefer aps then ath
+    aps = _to_num("aps")
+    ath = _to_num("ath")
+    feats["throttle"] = aps.fillna(ath)
+    # brake prefer front then rear
+    pbrake_f = _to_num("pbrake_f")
+    pbrake_r = _to_num("pbrake_r")
+    feats["brake"] = pbrake_f.fillna(pbrake_r)
     steer_col = next((c for c in df.columns if "steer" in c.lower()), None)
     feats["steer_abs"] = df[steer_col].abs() if steer_col else pd.Series(np.nan, index=df.index)
     if "accx_can" in df.columns and "accy_can" in df.columns:
-        feats["accel_mag"] = np.sqrt(_to_num("accx_can").fillna(0)**2 + _to_num("accy_can").fillna(0)**2)
+        feats["accel_mag"] = np.sqrt(_to_num("accx_can").fillna(0) ** 2 + _to_num("accy_can").fillna(0) ** 2)
     else:
         feats["accel_mag"] = np.nan
 
     feats["throttle_brake_diff"] = feats["throttle"].fillna(0) - feats["brake"].fillna(0)
 
-    # minimal fill
     feats = feats.fillna(feats.median())
     return feats
 
@@ -189,7 +219,6 @@ def detect_anomalies_combined(feats: pd.DataFrame,
     iso_min, iso_max = iso_raw.min(), iso_raw.max()
     iso_norm = (iso_raw - iso_min) / (iso_max - iso_min + 1e-12)
 
-    # z-scores
     z_abs = np.abs(X.apply(robust_z_score, axis=0).astype(np.float32))
     max_z = z_abs.max(axis=1).values
     z_norm = np.clip(max_z / (zscore_threshold * 2.0), 0.0, 1.0)
@@ -201,7 +230,7 @@ def detect_anomalies_combined(feats: pd.DataFrame,
     out["max_z"] = max_z
     out["z_norm"] = z_norm
     out["final_score"] = final_score
-    threshold = max(np.percentile(final_score, 100*(1 - isolation_contamination)), 0.6)
+    threshold = max(np.percentile(final_score, 100 * (1 - isolation_contamination)), 0.6)
     out["is_anomaly"] = out["final_score"] >= threshold
     return out
 
@@ -221,7 +250,7 @@ def run_full_anomaly_pipeline(path_or_df: Union[str, pd.DataFrame] = DEFAULT_TEL
       - progress: callback(progress_float) for UI updates
       - sample_max_rows: if long input is huge, subsample to this many rows before pivoting
     """
-    # If input is DataFrame and already wide, load_and_pivot will detect it
+    # pivot detection/creation
     pivot = load_and_pivot(path_or_df, metrics_keep=metrics_keep, chunksize=chunksize, progress=progress)
 
     if pivot is None or pivot.empty:
@@ -229,7 +258,6 @@ def run_full_anomaly_pipeline(path_or_df: Union[str, pd.DataFrame] = DEFAULT_TEL
 
     # optionally downsample very large pivot tables (keep stratified by vehicle_number+lap)
     if sample_max_rows and len(pivot) > sample_max_rows:
-        # sample proportionally by vehicle_number to keep representation
         pivot = pivot.groupby("vehicle_number", group_keys=False).apply(
             lambda g: g.sample(min(len(g), max(1, int(sample_max_rows / pivot["vehicle_number"].nunique()))), random_state=42)
         ).reset_index(drop=True)
