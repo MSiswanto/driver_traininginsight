@@ -1,37 +1,27 @@
-# ------------------------------------------------------------
-# app.py — FAST MODE (Super Optimized)
-# ------------------------------------------------------------
 import os
 import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.express as px
 from sklearn.ensemble import IsolationForest
-import matplotlib.pyplot as plt
 
 # Pages
 from pages.ai_insight import show_ai_insight
-# from pages.compare_drivers import show_compare_drivers
+
+st.set_page_config(
+    page_title="Driver Telemetry Dashboard (FAST MODE)",
+    page_icon="🏎️",
+    layout="wide"
+)
+
+DEFAULT_TELEMETRY_CSV = "https://github.com/MSiswanto/driver_traininginsight/releases/download/csv/telemetry_filtered_v2.csv"
 
 
-st.set_page_config(page_title="Driver Telemetry Dashboard (FAST MODE)",
-                   page_icon="🏎️", layout="wide")
-
-# Raw GitHub Release CSV
-url = "https://github.com/MSiswanto/driver_traininginsight/releases/download/csv/telemetry_filtered_v2.csv"
-DEFAULT_TELEMETRY_CSV = url
-
-
-# =====================================================================
-# 🔥 SUPER FAST LOADER (NO TIMESTAMP, NO EXPENSIVE PIVOT)
-# =====================================================================
 @st.cache_data(show_spinner=True)
 def load_telemetry_wide(csv_path):
-    """Load long-format telemetry from local path or URL."""
     if isinstance(csv_path, pd.DataFrame):
         raise TypeError("csv_path must be a path or URL, not a DataFrame.")
 
-    # detect URL
     is_url = csv_path.startswith("http://") or csv_path.startswith("https://")
 
     try:
@@ -46,14 +36,13 @@ def load_telemetry_wide(csv_path):
 
     required = ["vehicle_id", "vehicle_number", "lap",
                 "telemetry_name", "telemetry_value"]
+
     for col in required:
         if col not in df.columns:
             raise ValueError(f"Missing required column: {col}")
 
-    # sample index
     df["sample_id"] = np.arange(len(df))
 
-    # Pivot to wide format
     df_wide = df.pivot(
         index=["vehicle_id", "vehicle_number", "lap", "sample_id"],
         columns="telemetry_name",
@@ -69,13 +58,13 @@ def load_telemetry_wide(csv_path):
         "pbrake_r": "brake_rear",
         "steering_angle": "steering"
     }
+
     df_wide = df_wide.rename(columns=rename_map)
 
     for col in ["speed", "throttle", "brake_front", "brake_rear", "steering"]:
         if col not in df_wide.columns:
             df_wide[col] = np.nan
 
-    # fix throttle if empty
     if df_wide["throttle"].isna().all() or df_wide["throttle"].max() == 0:
         acc = df_wide["acc_x"].fillna(0).clip(lower=0)
         df_wide["throttle"] = (
@@ -85,13 +74,12 @@ def load_telemetry_wide(csv_path):
     return df_wide
 
 
-# =====================================================================
-# 📊 LAP ANALYSIS
-# =====================================================================
 def page_lap_analysis(df):
     st.header("📊 Lap Analysis")
 
-    possible = ["speed", "throttle", "steering", "brake_front", "brake_rear", "acc_x", "acc_y"]
+    possible = ["speed", "throttle", "steering",
+                "brake_front", "brake_rear", "acc_x", "acc_y"]
+
     avail = [m for m in possible if m in df.columns and df[m].notna().sum() > 0]
 
     if not avail:
@@ -99,9 +87,9 @@ def page_lap_analysis(df):
         return
 
     metric = st.selectbox("Select metric", avail)
+
     df_plot = df.groupby("lap")[metric].mean().reset_index()
 
-    # Best lap logic
     if metric in ["speed", "acc_x"]:
         best_idx = df_plot[metric].idxmax()
     else:
@@ -117,9 +105,8 @@ def page_lap_analysis(df):
     st.plotly_chart(fig, use_container_width=True)
 
 
-# =====================================================================
-# 🆚 COMPARE DRIVERS
-# =====================================================================
+import matplotlib.pyplot as plt
+
 def page_compare_drivers(df):
     st.header("🏎️ Compare Drivers")
 
@@ -143,12 +130,12 @@ def page_compare_drivers(df):
     dfB["lap"] = pd.to_numeric(dfB["lap"], errors="ignore")
 
     laps_common = sorted(list(set(dfA["lap"]).intersection(dfB["lap"])))
+
     if len(laps_common) == 0:
         st.error("❌ These two drivers have no overlapping laps.")
         return
 
     lap_selected = st.selectbox("Select Lap", laps_common)
-
     lapA = dfA[dfA["lap"] == lap_selected].reset_index(drop=True)
     lapB = dfB[dfB["lap"] == lap_selected].reset_index(drop=True)
 
@@ -176,12 +163,8 @@ def page_compare_drivers(df):
     st.table(summary_df)
 
 
-# =====================================================================
-# MAIN APP
-# =====================================================================
 def main():
     st.title("🏎️ Driver Telemetry Dashboard")
-    st.caption("Optimized build: ultra-fast loading and processing.")
 
     try:
         df_wide = load_telemetry_wide(DEFAULT_TELEMETRY_CSV)
@@ -193,7 +176,11 @@ def main():
     st.sidebar.image("assets/team_logo.png", width=180)
 
     st.sidebar.header("Navigation")
-    menu = st.sidebar.radio("Go to:", ["Lap Analysis", "Compare Drivers", "AI Insight"])
+    menu = st.sidebar.radio("Go to:", [
+        "Lap Analysis",
+        "Compare Drivers",
+        "AI Insight"
+    ])
 
     if menu == "Lap Analysis":
         page_lap_analysis(df_wide)
