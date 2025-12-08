@@ -1,27 +1,26 @@
-    # original content follows after this marker
-    # ----------------- START ORIGINAL APP HERE -----------------
-    # paste original app.py contents below this try block (temporarily)
-    # ------------------------------------------------------------
-    # app.py — FAST MODE (Super Optimized)
-    # ------------------------------------------------------------
-    import os
-    import streamlit as st
-    import pandas as pd
-    import numpy as np
-    import plotly.express as px
-    from sklearn.ensemble import IsolationForest
+# original content follows after this marker
+# ----------------- START ORIGINAL APP HERE -----------------
+# paste original app.py contents below this try block (temporarily)
+# ------------------------------------------------------------
+# app.py — FAST MODE (Super Optimized)
+# ------------------------------------------------------------
+import os
+import streamlit as st
+import pandas as pd
+import numpy as np
+import plotly.express as px
+from sklearn.ensemble import IsolationForest
     
-    # Pages
-    from pages.ai_insight import show_ai_insight
-    #from pages.compare_drivers import show_compare_drivers
+# Pages
+from pages.ai_insight import show_ai_insight
+#from pages.compare_drivers import show_compare_drivers
     
+st.set_page_config(page_title="Driver Telemetry Dashboard (FAST MODE)",
+                    page_icon="🏎️", layout="wide")
     
-    st.set_page_config(page_title="Driver Telemetry Dashboard (FAST MODE)",
-                       page_icon="🏎️", layout="wide")
-    
-    url = "https://github.com/MSiswanto/driver_traininginsight/releases/download/csv/telemetry_filtered_v2.csv"
-    DEFAULT_TELEMETRY_CSV = url
-    #DEFAULT_TELEMETRY_CSV = "https://github.com/MSiswanto/driver_traininginsight/releases/download/csv/telemetry_filtered_v2.csv"
+url = "https://github.com/MSiswanto/driver_traininginsight/releases/download/csv/telemetry_filtered_v2.csv"
+DEFAULT_TELEMETRY_CSV = url
+#DEFAULT_TELEMETRY_CSV = "https://github.com/MSiswanto/driver_traininginsight/releases/download/csv/telemetry_filtered_v2.csv"
     
     # =====================================================================
     # 🔥 SUPER FAST LOADER (NO TIMESTAMP, NO EXPENSIVE PIVOT)
@@ -362,6 +361,7 @@
     
     if __name__ == "__main__":
         main()
+
 
 
 
