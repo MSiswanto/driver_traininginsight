@@ -37,5 +37,5 @@ if page == "🏎 AI Insight":
 elif page == "🆚 Compare Drivers":
     show_compare_drivers(df)
 
-#elif page == "📊 Lap Analysis":
-    #show_lap_analysis(df)
+elif page == "📊 Lap Analysis":
+    show_lap_analysis(df)
