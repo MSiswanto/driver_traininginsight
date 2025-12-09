@@ -17,14 +17,18 @@ def show_lap_analysis(df):
     if "vehicle_number" in df.columns:
         drivers = sorted(df["vehicle_number"].dropna().unique().tolist())
     elif "vehicle_id" in df.columns:
-        drivers = sorted(df["vehicle_id"].dropna().unique().tolist())
+        drivers = sorted(df["vehicle_id"].dropna().unique().unique().tolist())
     else:
         st.error("No driver column found.")
         return
 
     driver = st.selectbox("Select Driver", drivers)
 
-    df_driver = df[df["vehicle_number"] == driver] if "vehicle_number" in df.columns else df[df["vehicle_id"] == driver]
+    df_driver = (
+        df[df["vehicle_number"] == driver]
+        if "vehicle_number" in df.columns
+        else df[df["vehicle_id"] == driver]
+    )
 
     if df_driver.empty:
         st.warning("Selected driver has no data.")
